@@ -1,0 +1,19 @@
+#building docker compose for Inception project: NGIX, WordPress, MariaDB setup
+
+services:
+  nginx:
+    container_name: nginx
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    environment:
+      -DOMAIN_NAME=${DOMAIN_NAME}
+    ports:
+      - "443:443"
+    volumes:
+      - wordpress:/var/www/html
+    networks:
+      - 00101010_network
+    depends_on:
+      - WordPress
+      - static_files

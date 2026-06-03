@@ -1,0 +1,40 @@
+#git
+
+.git
+.gitignore
+
+#Documentation
+
+README.md
+CHANGELOG.md
+LICENSE
+
+#Docker files
+
+docker-compose*.yml
+
+#build artifacts
+
+*.log
+*.obj
+*.out
+*.o
+
+#OS files
+
+.DS_Store
+Thumbs.db
+**/.DS_Store
+**/node_modules
+
+#temporary files
+
+*.tmp
+*.bak
+*~
+
+#other extensions
+
+.swp
+.sop
+.~
