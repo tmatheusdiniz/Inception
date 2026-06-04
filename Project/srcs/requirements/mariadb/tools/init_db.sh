@@ -58,4 +58,4 @@ unset DB_USER DB_PASSWORD DB_ROOT_PASSWORD
 
 # ─── Start MariaDB in foreground (PID 1) ─────────────────────────────────────
 echo "==> Starting MariaDB..."
-exec mysqld --user=mysql
+exec mysqld --user=mysql --bind-address=0.0.0.0

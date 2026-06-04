@@ -9,12 +9,17 @@ if [ -z "$DOMAIN_NAME" ]; then
 fi
 
 # Generate self-signed SSL certificate
-/usr/local/bin/ssl_setup.sh
+/usr/local/bin/setup_nginx.sh
 
 # Substitute $DOMAIN_NAME in the config template → final config
 envsubst '${DOMAIN_NAME}' \
     < /etc/nginx/http.d/default.conf.template \
     > /etc/nginx/http.d/default.conf
+
+echo "Waiting for wordpress..."
+until getent hosts wordpress > /dev/null 2>&1; do
+    sleep 1
+done
 
 # Validate config before starting
 nginx -t

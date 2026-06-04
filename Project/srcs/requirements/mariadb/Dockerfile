@@ -6,10 +6,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Runtime socket directory owned by mysql
-RUN mkdir -p /run/mysqld && chown mysql:mysql /run/mysqld
+RUN mkdir -p /run/mysqld && chown mysql:mysql /run/mysqld && mkdir -p /var/log/mysql && chown mysql:mysql /var/log/mysql && rm -rf /var/lib/mysql/*
 
 # Custom MariaDB configuration
-COPY ./conf/my.cnf /etc/my.cnf.d/inception.cnf
+COPY ./conf/my.cnf /etc/mysql/mariadb.conf.d/50-inception.cnf
 
 # Initialization + entrypoint scripts
 COPY ./tools/init_db.sh /usr/local/bin/
