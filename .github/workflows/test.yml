@@ -72,8 +72,13 @@ jobs:
 
       - name: No forbidden hacky patterns
         run: |
-          if grep -rEn 'tail -f|sleep infinity|while true' srcs/requirements; then
-            echo "::error::forbidden pattern found in an entrypoint"; exit 1
+          # Ignore matches that live inside shell comments (file:line:# ...)
+          hits=$(grep -rEn 'tail -f|sleep infinity|while true' srcs/requirements \
+                 | grep -vE ':[[:space:]]*#' || true)
+          if [ -n "$hits" ]; then
+            echo "::error::forbidden pattern found in an entrypoint"
+            echo "$hits"
+            exit 1
           fi
           echo "no forbidden patterns"
 
