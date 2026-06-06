@@ -1,0 +1,90 @@
+name: Inception CI
+
+# Runs on every push and pull request, and can be triggered by hand
+# from the Actions tab (workflow_dispatch).
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    # The Makefile and srcs/ live inside Project/, so run everything there.
+    defaults:
+      run:
+        working-directory: Project
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare host (volume dirs + /etc/hosts)
+        run: |
+          # docker-compose.yml binds the volumes to /home/mreinald/data
+          sudo mkdir -p /home/mreinald/data/wordpress /home/mreinald/data/mariadb
+          sudo chmod -R 777 /home/mreinald/data
+          echo "127.0.0.1 mreinald.42.fr" | sudo tee -a /etc/hosts
+
+      - name: Build and start the stack
+        run: make up        # = docker compose up -d --build
+
+      - name: Wait for WordPress to respond
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -k -s -o /dev/null -w "%{http_code}" https://mreinald.42.fr || true)
+            echo "attempt $i -> HTTP $code"
+            case "$code" in
+              200|301|302) echo "WordPress is up"; exit 0 ;;
+            esac
+            sleep 5
+          done
+          echo "::error::WordPress never became reachable"
+          docker compose -f srcs/docker-compose.yml logs
+          exit 1
+
+      - name: All three containers are running
+        run: |
+          docker ps
+          for c in nginx wordpress mariadb; do
+            running=$(docker inspect -f '{{.State.Running}}' "$c")
+            [ "$running" = "true" ] || { echo "::error::$c is not running"; exit 1; }
+          done
+
+      - name: Show images (manual check: names match services, no :latest)
+        run: docker images
+
+      - name: TLS 1.2 / 1.3 only
+        run: |
+          curl -k --tlsv1.2 -sf https://mreinald.42.fr -o /dev/null && echo "TLS 1.2 accepted"
+          curl -k --tlsv1.3 -sf https://mreinald.42.fr -o /dev/null && echo "TLS 1.3 accepted"
+          if curl -k --tls-max 1.1 -s https://mreinald.42.fr -o /dev/null; then
+            echo "::error::server accepted TLS below 1.2"; exit 1
+          fi
+          echo "TLS < 1.2 correctly rejected"
+
+      - name: Port 80 must be closed
+        run: |
+          if curl -s --max-time 5 http://mreinald.42.fr -o /dev/null; then
+            echo "::error::port 80 is reachable"; exit 1
+          fi
+          echo "port 80 closed (good)"
+
+      - name: No forbidden hacky patterns
+        run: |
+          if grep -rEn 'tail -f|sleep infinity|while true' srcs/requirements; then
+            echo "::error::forbidden pattern found in an entrypoint"; exit 1
+          fi
+          echo "no forbidden patterns"
+
+      - name: WordPress has at least 2 users
+        run: |
+          ROOT_PW=$(cat srcs/secrets/db_root_password.txt)
+          n=$(docker exec mariadb mariadb -u root -p"$ROOT_PW" -N -B \
+                -e "SELECT COUNT(*) FROM wordpress.wp_users;")
+          echo "user count: $n"
+          [ "$n" -ge 2 ] || { echo "::error::expected >= 2 WordPress users"; exit 1; }
+
+      - name: Tear down
+        if: always()
+        run: make down

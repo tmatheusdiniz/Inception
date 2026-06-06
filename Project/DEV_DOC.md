@@ -1,19 +1,20 @@
-# Developer Documentation
+# DEV_DOC.md — Developer Documentation
+
+This guide is for a developer setting up, building, and managing the project.
+For day-to-day usage of a running stack, see `USER_DOC.md`.
 
 ## 1. Environment Setup
 
 ### Prerequisites
 
-Before building the project, ensure the following software is installed:
-
-* Linux Virtual Machine (required by the project subject)
+* A Linux virtual machine (required by the subject)
 * Docker Engine
-* Docker Compose Plugin
+* Docker Compose plugin
 * GNU Make
-* OpenSSL (for TLS certificate generation)
+* OpenSSL (used at build time to generate the self-signed TLS certificate)
 * Git
 
-Verify the installation:
+Verify:
 
 ```bash
 docker --version
@@ -22,427 +23,182 @@ make --version
 openssl version
 ```
 
----
-
 ### Project Structure
+
+All required files live next to the `Makefile`:
 
 ```text
 .
 ├── Makefile
-├── secrets/
-│   ├── db_password.txt
-│   ├── db_root_password.txt
-│   └── credentials.txt
-├── srcs/
-│   ├── .env
-│   ├── docker-compose.yml
-│   └── requirements/
-│       ├── mariadb/
-│       ├── nginx/
-│       └── wordpress/
-└── DEV_DOC.md
+├── README.md
+├── USER_DOC.md
+├── DEV_DOC.md
+└── srcs/
+    ├── .env
+    ├── docker-compose.yml
+    ├── secrets/
+    │   ├── db_user.txt
+    │   ├── db_password.txt
+    │   ├── db_root_password.txt
+    │   ├── wp_admin_user.txt
+    │   ├── wp_admin_password.txt
+    │   ├── wp_admin_email.txt
+    │   ├── wp_user.txt
+    │   ├── wp_user_password.txt
+    │   └── wp_user_email.txt
+    └── requirements/
+        ├── nginx/      # Dockerfile, conf/, tools/
+        ├── wordpress/  # Dockerfile, conf/, tools/
+        └── mariadb/    # Dockerfile, conf/, tools/
 ```
 
----
+### Configure environment variables
 
-### Configure Environment Variables
-
-Create the file:
-
-```bash
-srcs/.env
-```
-
-Example:
+Non-sensitive configuration lives in `srcs/.env` (no passwords here — those go in secrets):
 
 ```env
-DOMAIN_NAME=login.42.fr
-
+DOMAIN_NAME=mreinald.42.fr
 MYSQL_DATABASE=wordpress
 MYSQL_USER=wpuser
-
-WP_ADMIN_USER=siteowner
-WP_ADMIN_EMAIL=admin@example.com
-
-WP_USER=user42
-WP_USER_EMAIL=user42@example.com
+WORDPRESS_DB_HOST=mariadb
+WORDPRESS_TABLE_PREFIX=wp_
+WORDPRESS_URL=https://mreinald.42.fr
+WORDPRESS_TITLE=Inception
 ```
 
-Replace all values with your own configuration.
+### Configure secrets
 
----
-
-### Configure Secrets
-
-Create the secrets directory:
+Every credential is a single-value file under `srcs/secrets/`, mounted into the
+containers at `/run/secrets/` by Docker Compose. Create the nine files:
 
 ```bash
-mkdir -p secrets
-```
-
-Required secret files:
-
-```text
-secrets/
-├── db_password.txt
-├── db_root_password.txt
-└── credentials.txt
-```
-
-Example:
-
-```bash
-echo "secure_db_password" > secrets/db_password.txt
-echo "secure_root_password" > secrets/db_root_password.txt
-echo "wordpress_user_password" > secrets/credentials.txt
+cd srcs/secrets
+echo "wpuser"        > db_user.txt
+echo "<db_pass>"     > db_password.txt
+echo "<root_pass>"   > db_root_password.txt
+echo "siteowner"     > wp_admin_user.txt      # must NOT contain "admin"
+echo "<admin_pass>"  > wp_admin_password.txt
+echo "admin@mreinald.42.fr" > wp_admin_email.txt
+echo "regularuser"   > wp_user.txt
+echo "<user_pass>"   > wp_user_password.txt
+echo "user@mreinald.42.fr"  > wp_user_email.txt
 ```
 
 **Important:**
 
-* Never commit secrets to Git.
-* Add them to `.gitignore`.
-* Dockerfiles must not contain passwords.
+* Never commit secrets. Add `srcs/secrets/` (and `srcs/.env` if it ever holds sensitive data) to `.gitignore`.
+* Dockerfiles must contain no passwords.
+* The WordPress administrator username must not contain "admin".
 
----
+### Host configuration
 
-### Host Configuration
-
-Add your domain to `/etc/hosts`:
+Map the domain to the VM in `/etc/hosts` (the `make setup` target does this automatically):
 
 ```bash
-127.0.0.1 login.42.fr
+127.0.0.1 mreinald.42.fr
 ```
 
-Replace `login` with your own 42 login.
+### Persistent storage directories
 
-Example:
-
-```bash
-127.0.0.1 jsmith.42.fr
-```
-
----
-
-### Persistent Storage Directories
-
-Create the host directories used by Docker named volumes:
+The two volumes store their data under `/home/mreinald/data` on the host. The
+`make` target creates these for you, but they can be made manually with:
 
 ```bash
-mkdir -p /home/<login>/data/mariadb
-mkdir -p /home/<login>/data/wordpress
-```
-
-Example:
-
-```bash
-mkdir -p /home/jsmith/data/mariadb
-mkdir -p /home/jsmith/data/wordpress
-```
-
-These directories store all persistent project data.
-
----
-
-## 2. Build and Launch
-
-### Build Images
-
-Build all services:
-
-```bash
-make
-```
-
-or
-
-```bash
-make build
-```
-
-Equivalent Docker Compose command:
-
-```bash
-docker compose -f srcs/docker-compose.yml build
+mkdir -p /home/mreinald/data/mariadb /home/mreinald/data/wordpress
 ```
 
 ---
 
-### Start Infrastructure
+## 2. Build and Launch (Makefile)
+
+The Makefile wraps Docker Compose. Its compose invocation is:
+`docker compose -f ./srcs/docker-compose.yml --env-file ./srcs/.env`.
+
+| Target | Effect |
+|--------|--------|
+| `make` / `make all` | `setup` + `up` — create data dirs, register the domain, then build and start (detached) |
+| `make up` | Build images and start containers in the background (`up -d --build`) |
+| `make uplog` | Same as `up` but stays in the foreground with live logs |
+| `make down` | Stop and remove containers and the network (host data preserved) |
+| `make stop` / `make start` | Stop / start containers without removing them |
+| `make restart` | Restart the containers |
+| `make status` | `docker ps -a` |
+| `make logs` | Follow logs for all services |
+| `make clean` | Remove containers, images, and Docker-managed volumes |
+| `make fclean` | `clean` + wipe the host data directories under `/home/mreinald/data` |
+| `make re` | `fclean` then `all` — full rebuild from scratch |
+
+Equivalent raw Compose commands (run from the project root):
 
 ```bash
-make up
-```
-
-or
-
-```bash
-docker compose -f srcs/docker-compose.yml up -d
-```
-
-This starts:
-
-* NGINX
-* WordPress (PHP-FPM)
-* MariaDB
-
----
-
-### Stop Infrastructure
-
-```bash
-make down
-```
-
-or
-
-```bash
-docker compose -f srcs/docker-compose.yml down
-```
-
----
-
-### Rebuild Everything
-
-```bash
-make re
-```
-
-Typical implementation:
-
-```Makefile
-re: fclean build up
-```
-
----
-
-### Remove Containers, Images and Volumes
-
-```bash
-make fclean
-```
-
-Equivalent:
-
-```bash
-docker compose -f srcs/docker-compose.yml down -v
-docker system prune -af
+docker compose -f srcs/docker-compose.yml --env-file srcs/.env up -d --build
+docker compose -f srcs/docker-compose.yml --env-file srcs/.env down
 ```
 
 ---
 
 ## 3. Container Management
 
-### List Running Containers
-
 ```bash
-docker ps
-```
-
-### List All Containers
-
-```bash
-docker ps -a
-```
-
-### View Container Logs
-
-NGINX:
-
-```bash
-docker logs nginx
-```
-
-WordPress:
-
-```bash
-docker logs wordpress
-```
-
-MariaDB:
-
-```bash
-docker logs mariadb
-```
-
-### Open a Shell Inside a Container
-
-NGINX:
-
-```bash
-docker exec -it nginx sh
-```
-
-WordPress:
-
-```bash
-docker exec -it wordpress sh
-```
-
-MariaDB:
-
-```bash
-docker exec -it mariadb sh
-```
-
-### Restart a Container
-
-```bash
-docker restart nginx
-docker restart wordpress
-docker restart mariadb
+docker ps                 # running containers
+docker ps -a              # all containers
+docker logs nginx         # per-service logs (also: wordpress, mariadb)
+docker exec -it nginx sh  # shell into a container (mariadb/wordpress: sh)
+docker restart wordpress  # restart a single container
 ```
 
 ---
 
-## 4. Volume Management
-
-### List Volumes
+## 4. Volume and Network Management
 
 ```bash
 docker volume ls
+docker volume inspect mariadb_volume        # or wordpress_volume
+docker network ls
+docker network inspect inception_network
 ```
 
-### Inspect a Volume
-
-```bash
-docker volume inspect mariadb_volume
-```
-
-### Remove a Volume
-
-```bash
-docker volume rm mariadb_volume
-```
-
-Only remove volumes if data loss is acceptable.
+Only remove a volume if data loss is acceptable.
 
 ---
 
 ## 5. Data Persistence
 
-### MariaDB Data
+The two persistent stores are mapped to the host under `/home/mreinald/data`:
 
-Database files are stored in:
+| Volume | Host path | Contents |
+|--------|-----------|----------|
+| `mariadb_volume` | `/home/mreinald/data/mariadb` | WordPress database, users, tables |
+| `wordpress_volume` | `/home/mreinald/data/wordpress` | WordPress core, themes, plugins, uploads |
 
-```text
-/home/<login>/data/mariadb
-```
-
-This directory is mapped to the MariaDB named volume.
-
-Contents include:
-
-* WordPress database
-* User accounts
-* Tables
-* Configuration data
-
-Data survives:
-
-* Container restarts
-* Container recreation
-* Host reboots
-
----
-
-### WordPress Data
-
-Website files are stored in:
-
-```text
-/home/<login>/data/wordpress
-```
-
-This directory contains:
-
-* Themes
-* Plugins
-* Uploads
-* WordPress core files
-
-Data persists independently from the container lifecycle.
-
----
-
-### Verify Persistence
-
-Inspect volumes:
+Because the data lives on the host, it survives container restarts, container
+recreation, and host reboots. Verify the mappings with:
 
 ```bash
-docker volume inspect mariadb_volume
+docker inspect mariadb  | grep -A 20 '"Mounts"'
 docker volume inspect wordpress_volume
+ls -la /home/mreinald/data/{mariadb,wordpress}
 ```
 
-Verify mount points:
-
-```bash
-docker inspect mariadb
-docker inspect wordpress
-```
+`make down` keeps this data; `make fclean` deletes it.
 
 ---
 
-## 6. Useful Troubleshooting Commands
-
-Check container status:
+## 6. Troubleshooting
 
 ```bash
-docker compose -f srcs/docker-compose.yml ps
-```
-
-Check network configuration:
-
-```bash
-docker network ls
-docker network inspect inception_network
-```
-
-View resource usage:
-
-```bash
-docker stats
-```
-
-Validate Docker Compose file:
-
-```bash
-docker compose -f srcs/docker-compose.yml config
-```
-
-Check mounted volumes:
-
-```bash
-docker inspect wordpress | grep Mounts -A 20
+docker compose -f srcs/docker-compose.yml --env-file srcs/.env config   # validate compose file
+docker compose -f srcs/docker-compose.yml --env-file srcs/.env ps       # service-level status
+docker stats                                                            # live resource usage
 ```
 
 ---
 
 ## 7. Development Workflow
 
-1. Modify service configuration or Dockerfiles.
-2. Rebuild affected images:
+1. Edit a Dockerfile, config, or script under `srcs/requirements/`.
+2. Rebuild and restart: `make re` (full) or `make up` (incremental).
+3. Inspect logs: `docker logs <container>`.
+4. Confirm the change behaves as expected through `https://mreinald.42.fr`.
 
-```bash
-docker compose build
-```
-
-3. Restart services:
-
-```bash
-docker compose up -d
-```
-
-4. Verify logs:
-
-```bash
-docker logs <container_name>
-```
-
-5. Test access through:
-
-```text
-https://login.42.fr
-```
-
-This workflow ensures configuration changes are correctly applied while preserving persistent data stored in Docker volumes.
-
+This preserves persistent data in `/home/mreinald/data` while applying configuration changes.
