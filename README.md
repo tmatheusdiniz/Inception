@@ -1,4 +1,10 @@
-*This project has been created as part of the 42 curriculum by tmatheusdiniz*
+<p align="center">
+  <img src="assets/inception_image.png" width="700" height="400">
+</p>
+
+<p align="center">
+  <b>This project has been created as part of the 42 curriculum by tmatheusdiniz</b>
+</p>
 
 # Inception
 
