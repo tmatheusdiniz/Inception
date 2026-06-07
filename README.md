@@ -52,8 +52,34 @@ make
 
 The WordPress site is then available at `https://login.42.fr`.
 
-- For day-to-day usage (starting/stopping, accessing the site and admin panel, locating credentials, checking health), see **[USER_DOC.md](Project/USER_DOC.md)**.
-- For setting up the environment from scratch, building, and managing containers/volumes, see **[DEV_DOC.md](Project/DEV_DOC.md)**.
+## Project Structure
+
+```zshell
+
+.
+├── Makefile
+├── secrets/
+│   ├── credentials.txt
+│   ├── db_password.txt
+│   ├── db_root_password.txt
+|   └── ...
+└── srcs/
+|    ├── docker-compose.yml
+|    ├── .env
+|    └── requirements/
+|        ├── nginx/
+│           ├── Dockerfile
+│           ├── conf/
+│           └── tools/
+|        ├── wordpress/
+│           ├── Dockerfile
+│           ├── conf/
+│           └── tools/
+|        └── mariadb/
+|            ├── Dockerfile
+|            ├── conf/
+|            └── tools/
+```
 
 ## Resources
 
