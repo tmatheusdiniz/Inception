@@ -39,11 +39,14 @@ A bind mount links a specific host path directly to a path inside the container,
 
 ## Instructions
 
-The project must be run inside a Linux virtual machine with Docker, Docker Compose, and `make` installed, and with the domain `login.42.fr` pointing to the VM in `/etc/hosts`.
+The project must be run on a Linux machine with Docker, Docker Compose, and make installed. Additionally, the domain login.42.fr must point to the VM by adding an entry to /etc/hosts.
+
+The Makefile automates the setup process; however, you must have permission to use sudo and execute the required commands.
 
 From the directory containing the `Makefile`, build and start the whole stack with:
 
 ```bash
+git clone git@github.com:tmatheusdiniz/Inception.git && cd Inception
 make
 ```
 
@@ -64,12 +67,3 @@ The WordPress site is then available at `https://login.42.fr`.
 - [WP-CLI documentation](https://wp-cli.org/)
 - [php-fpm configuration](https://www.php.net/manual/en/install.fpm.configuration.php)
 - [PID 1 and signal handling in containers](https://cloud.google.com/architecture/best-practices-for-building-containers#signal-handling)
-
-### AI Usage
-
-AI was used during this project for the following tasks:
-- Generating the initial structure of this README
-- Clarifying concepts such as the differences between volumes and bind mounts, and between Docker networks and host networking
-- Reviewing Dockerfile syntax and suggesting improvements to entrypoint scripts
-
-All AI-generated content was reviewed, tested, and validated before being used. No code was used without being fully understood.
